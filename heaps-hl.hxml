@@ -1,0 +1,5 @@
+--main Main
+--class-path src
+--library haxeui-core
+--library haxeui-heaps
+--hl build/heals/main.hl

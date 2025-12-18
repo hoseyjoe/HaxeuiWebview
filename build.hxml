@@ -1,0 +1,9 @@
+--main Main
+--class-path src
+--library haxeui-core
+--library haxeui-html5
+--js build/haxeui/main.js
+
+#--cmd nme build windows
+#--next
+#--cmd openfl build windows
