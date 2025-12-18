@@ -1,0 +1,8 @@
+<module id="my-module">
+    <components>
+        <class name="HaxeWebview" />
+    </components>
+</module>
+
+
+            

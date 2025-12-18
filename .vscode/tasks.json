@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "NME Windows",
+			"type": "shell",
+			"command": "nme",
+			"args": [
+                "build",
+				"project.nmml",
+				"windows",
+				"-debug"
+			],
+			"group": "build",
+			
+		}
+		
+	]
+}

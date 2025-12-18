@@ -1,0 +1,20 @@
+<vbox style="padding: 5px;" width="100%" height="100%" >
+    <style>
+        .button {
+            font-size: 20px;
+        }
+    </style>
+    <hbox>
+        <button text="Click Me!" id="button1" style="color: red;" />
+        <button text="Click Me!" id="button2" style="color: green;" />
+        <button text="Click Me!" onclick="this.text='Thanks!'" style="color: blue;" />
+    </hbox>  
+    <hbox height="100%" width="100%" >
+        <HaxeWebview id="mywebview" width="50%" height="100%" />
+<HaxeWebview id="mywebview2" width="50%" height="100%" />
+    </hbox>
+    <hbox height="100%" width="100%" >
+        <HaxeWebview id="mywebview3" width="50%" height="100%" />
+<HaxeWebview id="mywebview4" width="50%" height="100%" />
+    </hbox>
+</vbox>
