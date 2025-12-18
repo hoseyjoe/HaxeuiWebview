@@ -34,11 +34,10 @@ class HaxeWebview extends Box {
         private var webview:WebView;
         private var nmeHwnd:Int = 0;
     #end
-        private var _url:String = "";
-    #if (cpp || hl)
-        public var url:String;
-    #else
-        public var url(get, set):String;
+    
+    @:isVar public var url(get, set):String;
+
+    #if js
         private var _iframe:IFrameElement = null;   
     #end
     public function new() {
@@ -53,17 +52,26 @@ class HaxeWebview extends Box {
         #end
         
     }
-    #if js
-        private function get_url():String {
-            return _iframe.src;
-        }
-        private function set_url(value:String):String {
+   
+    private function get_url():String {
+        #if js
+        return _iframe.src;
+        #else
+        return url;
+        #end
+    }
+    private function set_url(value:String):String {
+        #if js
             _iframe.src = value;
-            _url=value;
-            return _url;
-        }
+        #else
+            if (webview != null) {
+                try webview.navigate(value) catch (e:Dynamic) {};
+            }
+        #end
+        url=value;
+        return url;
+    }
 
-    #end
     #if (cpp || hl)
         private override function validateComponentLayout():Bool {
             var b = super.validateComponentLayout();

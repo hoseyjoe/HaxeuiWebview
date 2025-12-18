@@ -8,7 +8,8 @@ class MainView extends VBox {
     public function new() {
         super();
         button1.onClick = function(e) {
-            button1.text = "Thanks!";
+            button1.text = "Go Google?";
+            mywebview.url = "https://google.com";
         }
     }
     

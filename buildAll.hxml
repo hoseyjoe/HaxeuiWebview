@@ -1,0 +1,6 @@
+
+--cmd haxe html5.hxml
+--next
+--cmd nme build windows
+--next
+--cmd openfl build windows

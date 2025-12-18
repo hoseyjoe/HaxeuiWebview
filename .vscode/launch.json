@@ -5,11 +5,25 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "HXCPP",
+            "name": "Launch Chrome",
+            "request": "launch",
+            "type": "chrome",
+            "url": "http://localhost:5500",
+            "webRoot": "${workspaceFolder}/"
+        },
+        {
+            "name": "NME",
             "type": "hxcpp",
             "request": "launch",
             "program": "${workspaceFolder}/build/nme/windows/Main/Main.exe",
             "preLaunchTask": "NME Windows"
+        },
+        {
+            "name": "OpenFL",
+            "type": "hxcpp",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/openfl/windows/bin/Main.exe",
+            "preLaunchTask": "OpenFL Windows"
         }
     ]
 }

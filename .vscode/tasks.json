@@ -13,6 +13,19 @@
 			],
 			"group": "build",
 			
+		},
+		{
+			"label": "OpenFL Windows",
+			"type": "shell",
+			"command": "openfl",
+			"args": [
+                "build",
+				"openfl.xml",
+				"windows",
+				"-debug"
+			],
+			"group": "build",
+			
 		}
 		
 	]
