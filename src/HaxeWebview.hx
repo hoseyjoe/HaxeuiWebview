@@ -1,6 +1,6 @@
-import nme.display.Sprite;
-import nme.Lib;
-import nme.events.Event;
+import openfl.display.Sprite;
+import openfl.Lib;
+import openfl.events.Event;
 #if cpp 
 import webview.WebView;
 import webview.WebView.WebViewSizeHint;
@@ -17,7 +17,7 @@ import haxe.ui.core.Component;
 class HaxeWebview extends Box {
     private var webview:WebView;
     private var nmeHwnd:Int = 0;
-
+    public var url:String;
     public function new() {
         super();
         #if cpp
@@ -26,24 +26,10 @@ class HaxeWebview extends Box {
         addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
     }
 
-    private inline function getAbsoluteXY():{x:Int, y:Int} {
-        var ax:Int = 0;
-        var ay:Int = 0;
-        var c:Component = cast this;
-        while (c != null) {
-            ax += Math.floor(c.x);
-            ay += Math.floor(c.y);
-            c = c.parentComponent;
-        }
-        return { x: ax, y: ay };
-    }
-
     private override function validateComponentLayout():Bool {
         var b = super.validateComponentLayout();
-        trace("HaxeWebview validateComponentLayout: " + this.x + "," + this.y + " " + this.width + "x" + this.height);
-        if (width > 0 && height > 0) {
-            var abs = getAbsoluteXY();
-            setWebViewRect(abs.x, abs.y, Math.floor(this.width), Math.floor(this.height));
+        if (width > 0 && height > 0) {    
+            setWebViewRect(Math.floor(screenLeft), Math.floor(screenTop), Math.floor(this.width), Math.floor(this.height));
         }
         return b;
     }
@@ -64,8 +50,8 @@ class HaxeWebview extends Box {
         if (webview == null) return;
         try webview.navigate("https://haxeui.org") catch (e:Dynamic) {};
         // Initial position (absolute in window coords)
-        var abs = getAbsoluteXY();
-        setWebViewRect(abs.x, abs.y, Math.floor(this.width), Math.floor(this.height));
+
+        setWebViewRect(Math.floor(screenLeft), Math.floor(screenTop), Math.floor(this.width), Math.floor(this.height));
         #end
     }
 
@@ -83,8 +69,8 @@ class HaxeWebview extends Box {
 
     private function onResize(_):Void {
         if (webview == null) return;
-        var abs = getAbsoluteXY();
-        setWebViewRect(abs.x, abs.y, Math.floor(this.width), Math.floor(this.height));
+
+        setWebViewRect(Math.floor(screenLeft), Math.floor(screenTop), Math.floor(this.width), Math.floor(this.height));
     }
 
     private function onFrame(_):Void {
