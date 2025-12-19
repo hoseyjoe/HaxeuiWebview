@@ -83,13 +83,13 @@ class WebView
 {
     /// Window Properties
     public var handle:Null<WindowPtr> = null;
-    public var x:Int = 0;
-    public var y:Int = 0;
-    public var width:Int = 0;
-    public var height:Int = 0;
-    public var decorated:Bool = true;
-    public var topmost:Bool = false;
-    public var shouldAllowDestroy:Bool = true; // Only used in Linux
+    private var x:Int = 0;
+    private var y:Int = 0;
+    private var width:Int = 0;
+    private var height:Int = 0;
+    private var decorated:Bool = true;
+    private var topmost:Bool = false;
+    private var shouldAllowDestroy:Bool = true; // Only used in Linux
 
     /// WEBVIEW
 
@@ -361,6 +361,8 @@ class WebView
     public static function version():WebViewInfo
         return Externs.webview_version();
 
+    
+
     /// WINDOW UTILS
 
     /**
@@ -472,7 +474,7 @@ class WebView
 @:keep
 @:buildXml("<include name=\"${haxelib:HxWebView}/include.xml\"/>")
 @:include("internal/imports.h")
-extern class Externs
+private extern class Externs
 {
     /// WEBVIEW.H EXTERNS
 

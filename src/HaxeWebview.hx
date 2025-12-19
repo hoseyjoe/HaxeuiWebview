@@ -1,5 +1,8 @@
 
 
+import haxe.ui.containers.dialogs.Dialog.DialogEvent;
+import haxe.ui.containers.dialogs.Dialog.DialogButton;
+import haxe.ui.containers.dialogs.MessageBox;
 #if (openfl || nme)     
     import openfl.display.Sprite;
     import openfl.Lib;
@@ -52,7 +55,91 @@ class HaxeWebview extends Box {
         #end
         
     }
-   
+    #if js
+        public function getPageObject(exp:String, callback:(value:String)->Void):Void{
+            var msg = new MessageBox();
+            msg.title = "Alert";
+            msg.text = 'Not available in HaxeWebview.  Uncaught DOMException: Permission denied to access property "document"';
+            msg.buttons = DialogButton.OK; // Single OK button
+            msg.onDialogClosed = function(event:DialogEvent) {
+                if (event.button == DialogButton.OK) {
+                    trace("User pressed OK");
+                }               
+            };
+            msg.showDialog();
+        }
+    #elseif cpp
+        /**
+        * Gets a JavaScript object/property from the page as a string.
+        * 
+        * Since eval() is asynchronous, this uses bind() to receive the value back.
+        * The JS expression should return a JSON-serializable value (string, number, bool, etc.).
+        * 
+        * Example:
+        * 
+        * ```haxe
+        * haxewebview.getPageObject("document.title", (value:String) -> {
+        *     trace("Title: " + value);
+        * });
+        * 
+        * haxewebview.getPageObject("document.body.innerHTML", (html:String) -> {
+        *     trace("Body HTML: " + html);
+        * });
+        * 
+        * haxewebview.getPageObject("document.documentElement.outerHTML", (html:String) -> {
+        *     trace("Full DOM: " + html);
+        * });
+        * ```
+        * 
+        * @param jsExpression A JavaScript expression to evaluate (e.g., "document.title", "document.body.innerHTML")
+        * @param callback Called with the stringified result from the JS expression
+        */
+        public function getPageObject(jsExpression:String, callback:(value:String)->Void):Void
+        {
+            if (webview.handle == null)
+                return;
+
+            var tempName = "__getPageObject_" + Std.random(999999);
+            
+            webview.bind(tempName, (seq, req, _) -> {
+                // req is a JSON array with the value as first element
+                var value = haxe.Json.parse(req)[0];
+                callback(value);
+                webview.resolve(seq, 0, '""');
+                webview.unbind(tempName);
+            }, null);
+
+            // Call the temporary binding via bracket access to avoid any identifier edge cases
+            webview.eval('window["' + tempName + '"](' + jsExpression + ');');
+        }
+
+        /**
+        * Registers a JavaScript notification function that the page can call to send messages to the host.
+        * 
+        * Example:
+        * 
+        * ```haxe
+        * haxewebview.registerJsNotification("notifyHost", (msg:String) -> {
+        *     trace("Received message from JS: " + msg);
+        * });
+        * Send a message to Haxe; returns a Promise
+        *  window.notifyHost("hello from JS").then(() => console.log("delivered"));
+        * ```
+        * 
+        * @param name The name of the JavaScript function to register (default: "notifyHost")
+        * @param handler Called when the JS function is invoked, with the message string
+        */
+        // Call this after webview is created
+        public function registerJsNotification(name:String = "notifyHost", handler:(msg:String)->Void):Void {
+            if (webview == null || webview.handle == null) return;
+            webview.bind(name, (seq, req, _) -> {
+                // req is JSON array of args; take first element as message
+                var msg = haxe.Json.parse(req)[0];
+                handler(Std.string(msg));
+                webview.resolve(seq, 0, '""'); // resolve JS promise
+            }, null);
+        }
+    #end
     private function get_url():String {
         #if js
         return _iframe.src;
@@ -99,6 +186,13 @@ class HaxeWebview extends Box {
             try webview.navigate(url) catch (e:Dynamic) {};
             // Initial position (absolute in window coords)
 
+            // Register JS notification handler after webview is created
+            registerJsNotification("notifyHost", (msg:String) -> {
+                trace("Message from JS: " + msg);
+                // Handle the notification here or dispatch a HaxeUI event
+                // e.g., dispatch(new haxe.ui.events.UIEvent("webviewMessage", msg));
+            });
+
             setWebViewRect(Math.floor(screenLeft), Math.floor(screenTop), Math.floor(this.width), Math.floor(this.height));
             #end
         }
@@ -111,6 +205,32 @@ class HaxeWebview extends Box {
                 "HWND hwnd = (HWND)(void*){0}; if (hwnd) {::ShowWindow(hwnd, SW_SHOW); ::UpdateWindow(hwnd); ::SetWindowPos(hwnd, NULL, {1}, {2}, {3}, {4}, SWP_NOZORDER | SWP_SHOWWINDOW);}",
                 webview.getNativeHandle(WebViewNativeHandleKind.WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET),
                 x, y, w, h
+            );
+            #end
+        }
+
+        /**
+         * Hide the embedded WebView HWND so HaxeUI dialogs render on top.
+         */
+        public function hideWebView():Void {
+            #if (cpp || hl)
+            if (webview == null) return;
+            untyped __cpp__(
+                "HWND hwnd = (HWND)(void*){0}; if (hwnd) {::ShowWindow(hwnd, SW_HIDE);}",
+                webview.getNativeHandle(WebViewNativeHandleKind.WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET)
+            );
+            #end
+        }
+
+        /**
+         * Show the embedded WebView HWND again after dialogs close.
+         */
+        public function showWebView():Void {
+            #if (cpp || hl)
+            if (webview == null) return;
+            untyped __cpp__(
+                "HWND hwnd = (HWND)(void*){0}; if (hwnd) {::ShowWindow(hwnd, SW_SHOW); ::UpdateWindow(hwnd);}",
+                webview.getNativeHandle(WebViewNativeHandleKind.WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET)
             );
             #end
         }
