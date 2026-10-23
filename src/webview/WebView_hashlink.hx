@@ -212,7 +212,7 @@ class WebView
         if (handle == null)
             return;
 
-        Externs.webview_set_title(handle, title);
+        Externs.webview_set_title(handle, utf8(title));
     }
 
     /**
@@ -228,7 +228,7 @@ class WebView
         this.width = width;
         this.height = height;
 
-        Externs.webview_set_size(handle, width, height, hints);
+        Externs.hx_set_size(handle, width, height, hints);
     }
 
     /**
@@ -250,7 +250,7 @@ class WebView
         if (handle == null)
             return;
 
-        Externs.webview_navigate(handle, url);
+        Externs.webview_navigate(handle, utf8(url));
     }
 
     /**
@@ -268,7 +268,7 @@ class WebView
         if (handle == null)
             return;
 
-        Externs.webview_set_html(handle, html);
+        Externs.webview_set_html(handle, utf8(html));
     }
 
     /**
@@ -283,7 +283,7 @@ class WebView
         if (handle == null)
             return;
 
-        Externs.webview_init(handle, js);
+        Externs.webview_init(handle, utf8(js));
     }
 
     /**
@@ -298,7 +298,7 @@ class WebView
         if (handle == null)
             return;
 
-        Externs.webview_eval(handle, js);
+        Externs.webview_eval(handle, utf8(js));
     }
 
     /**
@@ -315,7 +315,11 @@ class WebView
         if (handle == null)
             return;
 
-        Externs.hx_webview_bind(handle, name, fn, arg);
+        // Exceptions must not unwind through WebView2's COM callback, so catch them here
+        Externs.hx_webview_bind(handle, utf8(name), (seq, req, arg) ->
+        {
+            try fn(fromUtf8(seq), fromUtf8(req), arg) catch (e:Dynamic) trace('WebView bind "$name" threw: $e');
+        }, arg);
     }
 
     /**
@@ -326,7 +330,7 @@ class WebView
         if (handle == null)
             return;
 
-        Externs.webview_unbind(handle, name);
+        Externs.webview_unbind(handle, utf8(name));
     }
 
     /**
@@ -344,7 +348,7 @@ class WebView
         if (handle == null)
             return;
 
-        Externs.webview_return(handle, seq, status, result);
+        Externs.webview_return(handle, utf8(seq), status, utf8(result));
     }
 
     /**
@@ -352,7 +356,23 @@ class WebView
      * @since 0.10
      */
     public static function version():WebViewInfo
-        return Externs.hx_webview_version();
+    {
+        var number = fromUtf8(Externs.hx_webview_version_string(0));
+        var parts = number.split(".").map(Std.parseInt);
+        return {
+            version: {major: parts[0], minor: parts[1], patch: parts[2]},
+            version_number: number,
+            pre_release: fromUtf8(Externs.hx_webview_version_string(1)),
+            build_metadata: fromUtf8(Externs.hx_webview_version_string(2))
+        };
+    }
+
+    // The natives take and return NUL-terminated UTF-8
+    private static inline function utf8(s:String):hl.Bytes
+        return s == null ? null : @:privateAccess s.toUtf8();
+
+    private static inline function fromUtf8(b:hl.Bytes):String
+        return @:privateAccess String.fromUTF8(b);
 
     /// WINDOW UTILS
 
@@ -365,7 +385,9 @@ class WebView
      */
     public function getWindowPosition():{x:Int, y:Int}
     {
-        return Externs.get_window_position(handle);
+        var x = 0, y = 0;
+        Externs.get_window_position(handle, x, y);
+        return {x: x, y: y};
     }
 
     /**
@@ -463,7 +485,7 @@ class WebView
 /// RAW EXTERNS
 
 @:hlNative("webview")
-extern class Externs
+private extern class Externs
 {
     /// WEBVIEW.H EXTERNS
 
@@ -475,46 +497,45 @@ extern class Externs
 
     public static function webview_terminate(w:WindowPtr):Void;
 
-    // Can be found on WebViewComp.cpp
-    public static function hx_webview_dispatch(w:WindowPtr, fn:DispatchFunc, arg:Dynamic):Void;
+    // Can be found in native/webview_hl.cpp
+    public static function hx_webview_dispatch(w:WindowPtr, fn:(w:WindowPtr, arg:Dynamic)->Void, arg:Dynamic):Void;
 
     public static function webview_get_window(w:WindowPtr):WindowPtr;
 
-    // Can be found on WebViewComp.cpp
+    // Can be found in native/webview_hl.cpp
     // Returns a native handle of choice.
     // @since 0.11
     public static function hx_get_native_handle(w:WindowPtr, kind:WebViewNativeHandleKind):WindowPtr;
 
-    public static function webview_set_title(w:WindowPtr, title:String):Void;
+    public static function webview_set_title(w:WindowPtr, title:hl.Bytes):Void;
 
-    // Can be found on WebViewComp.cpp
+    // Can be found in native/webview_hl.cpp
     public static function hx_set_size(w:WindowPtr, width:Int, height:Int, hints:WebViewSizeHint):Void;
 
-    public static function webview_navigate(w:WindowPtr, url:String):Void;
+    public static function webview_navigate(w:WindowPtr, url:hl.Bytes):Void;
 
-    public static function webview_set_html(w:WindowPtr, html:String):Void;
+    public static function webview_set_html(w:WindowPtr, html:hl.Bytes):Void;
 
-    public static function webview_init(w:WindowPtr, js:String):Void;
+    public static function webview_init(w:WindowPtr, js:hl.Bytes):Void;
 
-    public static function webview_eval(w:WindowPtr, js:String):Void;
+    public static function webview_eval(w:WindowPtr, js:hl.Bytes):Void;
 
-    // Can be found on WebViewComp.cpp
-    public static function hx_webview_bind(w:WindowPtr, name:String, fn:BindFunc, arg:Dynamic):Void;
+    // Can be found in native/webview_hl.cpp
+    public static function hx_webview_bind(w:WindowPtr, name:hl.Bytes, fn:(seq:hl.Bytes, req:hl.Bytes, arg:Dynamic)->Void, arg:Dynamic):Void;
 
-    public static function webview_unbind(w:WindowPtr, name:String):Void;
+    public static function webview_unbind(w:WindowPtr, name:hl.Bytes):Void;
 
-    public static function webview_return(w:WindowPtr, seq:String, status:Int, result:String):Void;
+    public static function webview_return(w:WindowPtr, seq:hl.Bytes, status:Int, result:hl.Bytes):Void;
 
-    // Can be found on WebViewComp.cpp
-    // Get the library's version information.
+    // Get the library's version strings (0 = number, 1 = pre-release, 2 = build metadata).
     // @since 0.10
-    public static function hx_webview_version():WebViewInfo;
+    public static function hx_webview_version_string(which:Int):hl.Bytes;
 
     /// END OF WEBVIEW.H EXTERNS
 
     /// WINDOWUTILS.H
 
-    public static function get_window_position(w:WindowPtr):{x:Int, y:Int};
+    public static function get_window_position(w:WindowPtr, x:hl.Ref<Int>, y:hl.Ref<Int>):Void;
 
     public static function set_window_position(w:WindowPtr, newX:Int, newY:Int):Void;
 

@@ -2,4 +2,6 @@
 --class-path src
 --library haxeui-core
 --library haxeui-heaps
---hl build/heals/main.hl
+--library hlsdl
+--hl build/heaps/main.hl
+--cmd cd build/heaps && hl main.hl

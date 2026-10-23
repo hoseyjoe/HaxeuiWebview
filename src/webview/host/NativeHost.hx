@@ -1,11 +1,16 @@
 package webview.host;
 
-#if cpp
+#if (cpp || hl)
 class NativeHost
 {
     public static function create():INativeHost
     {
-        #if windows
+        #if hl
+        // HL has no OS defines, and webview.hdll is only built for Windows so far
+        if (Sys.systemName() == "Windows") return new NativeHostWindows();
+        trace("HaxeWebview: no HashLink native host for " + Sys.systemName());
+        return null;
+        #elseif windows
         return new NativeHostWindows();
         #elseif mac
         return new NativeHostMac();

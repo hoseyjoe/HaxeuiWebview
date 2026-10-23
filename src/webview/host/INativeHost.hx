@@ -1,8 +1,12 @@
 package webview.host;
 
-#if cpp
+#if (cpp || hl)
+#if hl
+import webview.WebView_hashlink;
+#else
 import webview.WebView;
 import webview.WebView.WindowPtr;
+#end
 
 // A rectangle in stage pixels, relative to the webview's top-left corner
 typedef ClipRect = {x:Int, y:Int, w:Int, h:Int}

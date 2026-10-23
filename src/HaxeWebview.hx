@@ -17,11 +17,11 @@ import haxe.ui.containers.dialogs.MessageBox;
     import cpp.Pointer;
     import cpp.Void as CVoid;
 #end
-#if (hl) 
-    import hxd.Event;
+#if hl
     import webview.WebView_hashlink;
-    import webview.WebView_hashlink.WebViewSizeHint;
-    import webview.WebView_hashlink.WebViewNativeHandleKind;
+    import webview.host.INativeHost;
+    import webview.host.INativeHost.ClipRect;
+    import webview.host.NativeHost;
 #end
 #if js
     import js.html.IFrameElement;
@@ -47,6 +47,10 @@ class HaxeWebview extends Box {
         private var host:INativeHost;
         private var lastClipKey:String = "";
     #end
+    #if hl
+        private var frameEvent:haxe.MainLoop.MainEvent;
+        private var lastRectKey:String = "";
+    #end
     
     @:isVar public var url(get, set):String;
 
@@ -57,7 +61,8 @@ class HaxeWebview extends Box {
         super();
         #if (cpp || hl)
             host = NativeHost.create();
-            addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
+            // HL/Heaps has no stage events; the webview is created in onReady instead
+            #if cpp addEventListener(Event.ADDED_TO_STAGE, onAddedToStage); #end
         #else
             _iframe = Browser.document.createIFrameElement();
             _iframe.frameBorder = "none";
@@ -78,7 +83,7 @@ class HaxeWebview extends Box {
             };
             msg.showDialog();
         }
-    #elseif cpp
+    #elseif (cpp || hl)
         /**
         * Gets a JavaScript object/property from the page as a string.
         * 
@@ -178,6 +183,23 @@ class HaxeWebview extends Box {
             return b;
         }
 
+        #if hl
+        private override function onReady():Void {
+            super.onReady();
+            if (host == null || webview != null) return;
+            createEmbeddedWebView();
+            // Heaps ticks MainLoop once per frame (there's no ENTER_FRAME / stage RESIZE)
+            if (webview != null) frameEvent = haxe.MainLoop.add(() -> onFrame(null));
+        }
+
+        private override function onDestroy():Void {
+            super.onDestroy();
+            if (frameEvent != null) frameEvent.stop();
+            frameEvent = null;
+            if (webview != null) webview.destroy();
+            webview = null;
+        }
+        #else
         private override function onAddedToStage(e:Event):Void {
             removeEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
             if (host == null) return;
@@ -185,6 +207,7 @@ class HaxeWebview extends Box {
             stage.addEventListener(Event.RESIZE, onResize);
             stage.addEventListener(Event.ENTER_FRAME, onFrame);
         }
+        #end
 
         private function createEmbeddedWebView():Void {
             #if (cpp || hl)
@@ -244,10 +267,19 @@ class HaxeWebview extends Box {
 
         private function onFrame(_):Void {
             if (webview == null) return;
-            // Win32: SDL's message pump already dispatches WebView2's messages, and HxWebView's
-            // process() uses a blocking GetMessage that would stall NME's frame loop until input.
-            #if !windows
+            // Win32: SDL's (or Heaps') message pump already dispatches WebView2's messages, and
+            // HxWebView's process() uses a blocking GetMessage that would stall the frame loop until input.
+            #if !(windows || hl)
             webview.process(false);
+            #end
+            #if hl
+            // Parents can move us without relayouting this component, so track the rect every frame
+            var x = Math.floor(screenLeft), y = Math.floor(screenTop), w = Math.floor(this.width), h = Math.floor(this.height);
+            var rectKey = '$x,$y,$w,$h';
+            if (rectKey != lastRectKey && w > 0 && h > 0) {
+                lastRectKey = rectKey;
+                setWebViewRect(x, y, w, h);
+            }
             #end
             updateClipHoles();
         }

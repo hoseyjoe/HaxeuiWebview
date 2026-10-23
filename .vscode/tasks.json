@@ -25,8 +25,23 @@
 				"-debug"
 			],
 			"group": "build",
-			
+
+		},
+		{
+			"label": "webview.hdll",
+			"type": "shell",
+			"command": "native\\build.bat",
+		},
+		{
+			"label": "Heaps HL",
+			"type": "shell",
+			"command": "haxe",
+			"args": [
+				"heaps-hl.hxml"
+			],
+			"dependsOn": "webview.hdll",
+			"group": "build",
 		}
-		
+
 	]
 }
