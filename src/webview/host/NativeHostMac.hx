@@ -4,6 +4,7 @@ package webview.host;
 import webview.WebView;
 import webview.WebView.WindowPtr;
 import webview.WebView.WebViewNativeHandleKind;
+import webview.host.INativeHost.ClipRect;
 
 // Cocoa / WKWebView.
 // webview/webview replaces the parent's contentView with the WKWebView, which would
@@ -52,6 +53,8 @@ class NativeHostMac implements INativeHost
     private var window:WindowPtr = null;
     private var nmeView:WindowPtr = null;
     private var widget:WindowPtr = null;
+    private var width:Int = 0;
+    private var height:Int = 0;
 
     public function new() {}
 
@@ -80,6 +83,8 @@ class NativeHostMac implements INativeHost
     public function setRect(x:Int, y:Int, w:Int, h:Int):Void
     {
         if (widget == null) return;
+        width = w;
+        height = h;
         // Stage coords are backing pixels with a top-left origin; NSView frames are
         // points with a bottom-left origin (NME's view is not flipped).
         untyped __cpp__(
@@ -99,6 +104,63 @@ class NativeHostMac implements INativeHost
         untyped __cpp__(
             "((void(*)(id, SEL, BOOL))objc_msgSend)((id)(void*){0}, sel_registerName(\"setHidden:\"), {1} ? NO : YES)",
             widget, visible
+        );
+    }
+
+    public function setClipHoles(holes:Array<ClipRect>):Void
+    {
+        if (widget == null) return;
+        untyped __cpp__(
+            "id wk = (id)(void*){0};
+            ((void(*)(id, SEL, BOOL))objc_msgSend)(wk, sel_registerName(\"setWantsLayer:\"), YES);",
+            widget
+        );
+        if (holes.length == 0)
+        {
+            untyped __cpp__(
+                "((void(*)(id, SEL, id))objc_msgSend)(hx_msg((id)(void*){0}, \"layer\"), sel_registerName(\"setMask:\"), nil)",
+                widget
+            );
+            return;
+        }
+        // Even-odd mask: the full rect plus one rect per hole leaves the holes transparent.
+        // NOTE: a layer mask is visual only, AppKit still hit-tests the WKWebView inside the holes.
+        var path:WindowPtr = untyped __cpp__(
+            "::cpp::Pointer<void>((void*)([](id win, id wk, int w, int h)->CGMutablePathRef {
+                double scale = ((double(*)(id, SEL))objc_msgSend)(win, sel_registerName(\"backingScaleFactor\"));
+                if (scale <= 0) scale = 1;
+                CGMutablePathRef p = CGPathCreateMutable();
+                CGPathAddRect(p, NULL, CGRectMake(0, 0, w / scale, h / scale));
+                return p;
+            })((id)(void*){0}, (id)(void*){1}, {2}, {3}))",
+            window, widget, width, height
+        );
+        for (hole in holes)
+        {
+            var x:Int = hole.x, y:Int = hole.y, w:Int = hole.w, h:Int = hole.h;
+            untyped __cpp__(
+                "{
+                    id win = (id)(void*){1}; id wk = (id)(void*){2};
+                    double scale = ((double(*)(id, SEL))objc_msgSend)(win, sel_registerName(\"backingScaleFactor\"));
+                    if (scale <= 0) scale = 1;
+                    BOOL flipped = ((BOOL(*)(id, SEL))objc_msgSend)(wk, sel_registerName(\"isFlipped\"));
+                    double hy = flipped ? {4} / scale : ({3} - {4} - {6}) / scale;
+                    CGPathAddRect((CGMutablePathRef)(void*){0}, NULL, CGRectMake({5} / scale, hy, {7} / scale, {6} / scale));
+                }",
+                path, window, widget, height, y, x, h, w
+            );
+        }
+        untyped __cpp__(
+            "{
+                CGMutablePathRef p = (CGMutablePathRef)(void*){1};
+                id mask = hx_cls_msg(\"CAShapeLayer\", \"layer\");
+                ((void(*)(id, SEL, CGPathRef))objc_msgSend)(mask, sel_registerName(\"setPath:\"), p);
+                id rule = ((id(*)(id, SEL, const char *))objc_msgSend)((id)objc_getClass(\"NSString\"), sel_registerName(\"stringWithUTF8String:\"), \"even-odd\");
+                ((void(*)(id, SEL, id))objc_msgSend)(mask, sel_registerName(\"setFillRule:\"), rule);
+                ((void(*)(id, SEL, id))objc_msgSend)(hx_msg((id)(void*){0}, \"layer\"), sel_registerName(\"setMask:\"), mask);
+                CGPathRelease(p);
+            }",
+            widget, path
         );
     }
 }

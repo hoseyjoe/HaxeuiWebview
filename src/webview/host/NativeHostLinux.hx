@@ -3,6 +3,7 @@ package webview.host;
 #if (cpp && linux)
 import webview.WebView;
 import webview.WebView.WindowPtr;
+import webview.host.INativeHost.ClipRect;
 
 // GTK / WebKitGTK.
 // webview/webview can only embed into a GtkWindow, but NME draws into a plain
@@ -53,6 +54,8 @@ class NativeHostLinux implements INativeHost
 {
     private var gtkWindow:WindowPtr = null;
     private var attached:Bool = false;
+    private var width:Int = 0;
+    private var height:Int = 0;
 
     public function new()
     {
@@ -105,6 +108,8 @@ class NativeHostLinux implements INativeHost
     public function setRect(x:Int, y:Int, w:Int, h:Int):Void
     {
         if (gtkWindow == null) return;
+        width = w;
+        height = h;
         if (!attached)
         {
             untyped __cpp__("gtk_window_resize(GTK_WINDOW((void*){0}), {1}, {2})", gtkWindow, w, h);
@@ -128,6 +133,40 @@ class NativeHostLinux implements INativeHost
         untyped __cpp__(
             "if ({1}) gtk_widget_show_all(GTK_WIDGET((void*){0})); else gtk_widget_hide(GTK_WIDGET((void*){0}));",
             gtkWindow, visible
+        );
+    }
+
+    public function setClipHoles(holes:Array<ClipRect>):Void
+    {
+        // Holes only make sense once the window sits inside the NME window
+        if (gtkWindow == null || !attached) return;
+        if (holes.length == 0)
+        {
+            untyped __cpp__(
+                "gtk_widget_shape_combine_region(GTK_WIDGET((void*){0}), NULL); gtk_widget_input_shape_combine_region(GTK_WIDGET((void*){0}), NULL);",
+                gtkWindow
+            );
+            return;
+        }
+        var region:WindowPtr = untyped __cpp__(
+            "::cpp::Pointer<void>((void*)([](int w, int h)->cairo_region_t* { cairo_rectangle_int_t r = {0, 0, w, h}; return cairo_region_create_rectangle(&r); })({0}, {1}))",
+            width, height
+        );
+        for (hole in holes)
+        {
+            var x:Int = hole.x, y:Int = hole.y, w:Int = hole.w, h:Int = hole.h;
+            untyped __cpp__(
+                "{ cairo_rectangle_int_t r = {{1}, {2}, {3}, {4}}; cairo_region_subtract_rectangle((cairo_region_t*)(void*){0}, &r); }",
+                region, x, y, w, h
+            );
+        }
+        // XShape under the hood: clips both drawing and input
+        untyped __cpp__(
+            "{ GtkWidget *win = GTK_WIDGET((void*){0}); cairo_region_t *rg = (cairo_region_t*)(void*){1};
+            gtk_widget_shape_combine_region(win, rg);
+            gtk_widget_input_shape_combine_region(win, rg);
+            cairo_region_destroy(rg); }",
+            gtkWindow, region
         );
     }
 }

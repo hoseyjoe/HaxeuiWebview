@@ -12,6 +12,7 @@ import haxe.ui.containers.dialogs.MessageBox;
     import webview.WebView.WebViewSizeHint;
     import webview.WebView.WebViewNativeHandleKind;
     import webview.host.INativeHost;
+    import webview.host.INativeHost.ClipRect;
     import webview.host.NativeHost;
     import cpp.Pointer;
     import cpp.Void as CVoid;
@@ -30,12 +31,21 @@ import haxe.ui.containers.dialogs.MessageBox;
 import haxe.ui.events.Events;
 import haxe.ui.containers.Box;
 import haxe.ui.core.Component;
+import haxe.ui.core.Screen;
 
 class HaxeWebview extends Box {
     #if (cpp || hl)
+        /**
+         * Components inside the normal view tree that should also draw over webviews
+         * (e.g. a floating panel). Popups (menus, dropdowns, dialogs, tooltips) are
+         * picked up automatically since HaxeUI puts them on their own Screen root.
+         */
+        public static var overlays:Array<Component> = [];
+
         private var webview:WebView;
         // Per-OS glue (Win32 / Cocoa / GTK) for parenting and positioning the native view
         private var host:INativeHost;
+        private var lastClipKey:String = "";
     #end
     
     @:isVar public var url(get, set):String;
@@ -234,7 +244,60 @@ class HaxeWebview extends Box {
 
         private function onFrame(_):Void {
             if (webview == null) return;
+            // Win32: SDL's message pump already dispatches WebView2's messages, and HxWebView's
+            // process() uses a blocking GetMessage that would stall NME's frame loop until input.
+            #if !windows
             webview.process(false);
+            #end
+            updateClipHoles();
+        }
+
+        /**
+         * Native webviews always draw above NME's GL surface, so rather than z-ordering we
+         * cut holes in the webview wherever a HaxeUI popup/overlay covers it.
+         */
+        private function updateClipHoles():Void {
+            var left = Math.floor(screenLeft);
+            var top = Math.floor(screenTop);
+            var w = Math.floor(this.width);
+            var h = Math.floor(this.height);
+            var holes:Array<ClipRect> = [];
+
+            var ownRoot = rootComponent;
+            for (c in Screen.instance.rootComponents) {
+                if (c == ownRoot) continue;
+                // Keep the webview visible (undimmed) behind modal overlays
+                if (c.id == "modal-background" || c.id == "sidebar-modal-background") continue;
+                addClipHole(holes, c, left, top, w, h);
+            }
+            for (c in overlays) {
+                if (Screen.instance.rootComponents.indexOf(c.rootComponent) == -1) continue;
+                addClipHole(holes, c, left, top, w, h);
+            }
+
+            // Only touch the native region when something actually changed
+            var key = '$w,$h';
+            for (r in holes) key += '|${r.x},${r.y},${r.w},${r.h}';
+            if (key == lastClipKey) return;
+            lastClipKey = key;
+            host.setClipHoles(holes);
+        }
+
+        private function addClipHole(holes:Array<ClipRect>, c:Component, left:Int, top:Int, w:Int, h:Int):Void {
+            var p = c;
+            while (p != null) {
+                if (p.hidden) return;
+                p = p.parentComponent;
+            }
+            if (c.width <= 0 || c.height <= 0) return;
+
+            // Intersect with this webview, in webview-local coordinates
+            var x1 = Std.int(Math.max(Math.floor(c.screenLeft) - left, 0));
+            var y1 = Std.int(Math.max(Math.floor(c.screenTop) - top, 0));
+            var x2 = Std.int(Math.min(Math.ceil(c.screenLeft + c.width) - left, w));
+            var y2 = Std.int(Math.min(Math.ceil(c.screenTop + c.height) - top, h));
+            if (x2 <= x1 || y2 <= y1) return;
+            holes.push({x: x1, y: y1, w: x2 - x1, h: y2 - y1});
         }
     #elseif js
     

@@ -4,7 +4,32 @@
             font-size: 20px;
         }
     </style>
+    <menubar width="100%">
+        <menu text="File">
+            <menu-item text="New" />
+            <menu-item text="Open..." />
+            <menu text="Recent">
+                <menu-item text="haxeui.org" />
+                <menu-item text="google.com" />
+            </menu>
+            <menu-separator />
+            <menu-item text="Exit" />
+        </menu>
+        <menu text="View">
+            <menu-checkbox text="Dev tools" />
+            <menu-item text="Reload" />
+        </menu>
+    </menubar>
     <hbox>
+        <dropdown text="Pick a site" id="siteDropdown" width="160">
+            <data>
+                <item text="haxeui.org" />
+                <item text="google.com" />
+                <item text="github.com" />
+                <item text="haxe.org" />
+                <item text="nme.io" />
+            </data>
+        </dropdown>
         <button text="Google?" id="button1" style="color: red;" />
         <button text="Document title!" id="button2" style="color: green;" />
         <button text="DOM..." id="button3" style="color: blue;" />

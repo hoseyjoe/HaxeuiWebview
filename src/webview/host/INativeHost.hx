@@ -4,6 +4,9 @@ package webview.host;
 import webview.WebView;
 import webview.WebView.WindowPtr;
 
+// A rectangle in stage pixels, relative to the webview's top-left corner
+typedef ClipRect = {x:Int, y:Int, w:Int, h:Int}
+
 // The per-OS glue that puts a webview/webview instance *inside* the NME window.
 // webview/webview already picks the right engine (WebView2 / WKWebView / WebKitGTK),
 // this only deals with parenting, positioning and visibility of the native view.
@@ -27,5 +30,12 @@ interface INativeHost
     function setRect(x:Int, y:Int, w:Int, h:Int):Void;
 
     function setVisible(visible:Bool):Void;
+
+    /**
+     * Native views always draw above NME's GL surface, so HaxeUI popups can't be
+     * z-ordered over them. Instead we cut these holes out of the webview so the GL
+     * content (and its mouse input) shows through. An empty array removes all holes.
+     */
+    function setClipHoles(holes:Array<ClipRect>):Void;
 }
 #end
