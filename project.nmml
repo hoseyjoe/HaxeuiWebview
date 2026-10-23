@@ -3,8 +3,12 @@
     <meta title="Main" package="" version="1.0.0" company="" />
     <app main="Main" file="Main" path="build/nme" />
 
-    <window background="#FFFFFF" fps="60" />
+    <window background="#FFFFFF" fps="60" allowHighDPI="true" />
     <window width="800" height="600" unless="mobile" />
+    
+    <set name="window-allow-shaders" value="true" />
+    <set name="window-depth-buffer" value="true" />
+    <set name="window-stencil-buffer" value="true" />
 
     <!-- classpath, haxe libs -->
     <source path="src" />
