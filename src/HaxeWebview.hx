@@ -11,6 +11,8 @@ import haxe.ui.containers.dialogs.MessageBox;
     import webview.WebView;
     import webview.WebView.WebViewSizeHint;
     import webview.WebView.WebViewNativeHandleKind;
+    import webview.host.INativeHost;
+    import webview.host.NativeHost;
     import cpp.Pointer;
     import cpp.Void as CVoid;
 #end
@@ -28,14 +30,12 @@ import haxe.ui.containers.dialogs.MessageBox;
 import haxe.ui.events.Events;
 import haxe.ui.containers.Box;
 import haxe.ui.core.Component;
-#if (cpp || hl) 
-@:cppInclude("windows.h")
-#end
 
 class HaxeWebview extends Box {
     #if (cpp || hl)
         private var webview:WebView;
-        private var nmeHwnd:Int = 0;
+        // Per-OS glue (Win32 / Cocoa / GTK) for parenting and positioning the native view
+        private var host:INativeHost;
     #end
     
     @:isVar public var url(get, set):String;
@@ -46,7 +46,7 @@ class HaxeWebview extends Box {
     public function new() {
         super();
         #if (cpp || hl)
-            untyped __cpp__("CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);");
+            host = NativeHost.create();
             addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
         #else
             _iframe = Browser.document.createIFrameElement();
@@ -170,18 +170,20 @@ class HaxeWebview extends Box {
 
         private override function onAddedToStage(e:Event):Void {
             removeEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
-            nmeHwnd = getNMEWindowHandle();
-            if (nmeHwnd == 0) return;
-            createEmbeddedWebView(nmeHwnd);
+            if (host == null) return;
+            createEmbeddedWebView();
             stage.addEventListener(Event.RESIZE, onResize);
             stage.addEventListener(Event.ENTER_FRAME, onFrame);
         }
 
-        private function createEmbeddedWebView(nmeHwnd:Int):Void {
+        private function createEmbeddedWebView():Void {
             #if (cpp || hl)
-            var winPtr = untyped __cpp__("(void*)(intptr_t){0}", nmeHwnd);
-            webview = new WebView(true, winPtr);
-            if (webview == null) return;
+            webview = new WebView(true, host.findParentWindow());
+            if (webview.handle == null) {
+                webview = null;
+                return;
+            }
+            if (!host.attach(webview)) trace("HaxeWebview: failed to embed webview into the host window");
             trace(url);
             try webview.navigate(url) catch (e:Dynamic) {};
             // Initial position (absolute in window coords)
@@ -200,38 +202,27 @@ class HaxeWebview extends Box {
         public function setWebViewRect(x:Int, y:Int, w:Int, h:Int):Void {
             #if (cpp || hl)
             if (webview == null) return;
-            // Cast via void* so C++ can convert to HWND
-            untyped __cpp__(
-                "HWND hwnd = (HWND)(void*){0}; if (hwnd) {::ShowWindow(hwnd, SW_SHOW); ::UpdateWindow(hwnd); ::SetWindowPos(hwnd, NULL, {1}, {2}, {3}, {4}, SWP_NOZORDER | SWP_SHOWWINDOW);}",
-                webview.getNativeHandle(WebViewNativeHandleKind.WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET),
-                x, y, w, h
-            );
+            host.setRect(x, y, w, h);
             #end
         }
 
         /**
-         * Hide the embedded WebView HWND so HaxeUI dialogs render on top.
+         * Hide the embedded native webview so HaxeUI dialogs render on top.
          */
         public function hideWebView():Void {
             #if (cpp || hl)
             if (webview == null) return;
-            untyped __cpp__(
-                "HWND hwnd = (HWND)(void*){0}; if (hwnd) {::ShowWindow(hwnd, SW_HIDE);}",
-                webview.getNativeHandle(WebViewNativeHandleKind.WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET)
-            );
+            host.setVisible(false);
             #end
         }
 
         /**
-         * Show the embedded WebView HWND again after dialogs close.
+         * Show the embedded native webview again after dialogs close.
          */
         public function showWebView():Void {
             #if (cpp || hl)
             if (webview == null) return;
-            untyped __cpp__(
-                "HWND hwnd = (HWND)(void*){0}; if (hwnd) {::ShowWindow(hwnd, SW_SHOW); ::UpdateWindow(hwnd);}",
-                webview.getNativeHandle(WebViewNativeHandleKind.WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET)
-            );
+            host.setVisible(true);
             #end
         }
 
@@ -245,17 +236,7 @@ class HaxeWebview extends Box {
             if (webview == null) return;
             webview.process(false);
         }
-
-        private function getNMEWindowHandle():Int {
-            #if (cpp || hl)
-            return untyped __cpp__(
-                "([]()->int {\nDWORD pid = ::GetCurrentProcessId();\nHWND best = NULL;\nfor (HWND h = ::GetTopWindow(NULL); h != NULL; h = ::GetWindow(h, GW_HWNDNEXT)) {\n  if (::GetParent(h) != NULL) continue;\n  DWORD p = 0; ::GetWindowThreadProcessId(h, &p);\n  if (p != pid) continue;\n  best = h; break;\n}\nif (best == NULL) best = ::GetForegroundWindow();\nreturn (int)(intptr_t)best;\n})()"
-            );
-            #else
-            return 0;
-            #end
-        }
-    #elseif js    
+    #elseif js
     
         private override function validateComponentLayout():Bool {
             var b = super.validateComponentLayout();

@@ -374,7 +374,7 @@ class WebView
      */
     public function getWindowPosition():{x:Int, y:Int}
     {
-        return Externs.get_window_position(handle);
+        #if mac return {x: 0, y: 0}; #else return Externs.get_window_position(handle); #end
     }
 
     /**
@@ -386,7 +386,7 @@ class WebView
      */
     public function setWindowPosition(newX:Int, newY:Int):Void
     {
-        Externs.set_window_position(handle, newX, newY);
+        #if !mac Externs.set_window_position(handle, newX, newY); #end
     }
 
     /**
@@ -399,7 +399,7 @@ class WebView
     public function setWindowDecoration(state:Bool):Void
     {
         decorated = state;
-        Externs.set_window_decoration(handle, state);
+        #if !mac Externs.set_window_decoration(handle, state); #end
     }
 
     /**
@@ -412,7 +412,7 @@ class WebView
     public function setWindowTopmost(state:Bool):Void
     {
         topmost = state;
-        Externs.set_window_topmost(handle, state);
+        #if !mac Externs.set_window_topmost(handle, state); #end
     }
 
     /**
@@ -427,7 +427,7 @@ class WebView
     public function addDestroySignal():Void
     {
         shouldAllowDestroy = false;
-        Externs.add_destroy_signal(handle);
+        #if !mac Externs.add_destroy_signal(handle); #end
     }
 
     /**
@@ -439,7 +439,7 @@ class WebView
      */
     public function eventsPending():Bool
     {
-        return Externs.events_pending(handle);
+        #if mac return false; #else return Externs.events_pending(handle); #end
     }
 
     /**
@@ -455,7 +455,8 @@ class WebView
      */
     public function process(state:Bool = false):Void
     {
-        Externs.run_main_iteration(state);
+        // Cocoa: no-op, the host app (SDL) already pumps the NSApp run loop
+        #if !mac Externs.run_main_iteration(state); #end
     }
 
     /**
