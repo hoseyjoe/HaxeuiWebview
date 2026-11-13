@@ -1,0 +1,10 @@
+﻿-L haxeui-core
+-L haxeui-hxwidgets
+--main Main
+--class-path src
+
+-D ABI=-MDd
+-D WXSTATIC
+-D HXCPP_M64
+--debug
+-cpp build/hxwidgets

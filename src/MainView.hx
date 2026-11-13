@@ -11,12 +11,12 @@ import haxe.ui.events.MouseEvent;
 class MainView extends VBox {
     public function new() {
         super();
-        button1.onClick = function(e) {
+       /* button1.onClick = function(e) {
             button1.text = "Go Google?";
             mywebview.url = "https://google.com";
-        }
+        }*/
     }
-    
+    /*
     @:bind(button2, MouseEvent.CLICK)
     private function onMyButton(e:MouseEvent) {
         mywebview.getPageObject("document.title",(res:String)-> {
@@ -39,4 +39,5 @@ class MainView extends VBox {
             msg.showDialog();
         });
     }
+    */
 }

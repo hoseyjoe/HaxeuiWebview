@@ -132,6 +132,13 @@ class NativeHostWindows implements INativeHost
         }
         HostExterns.host_set_clip_holes(widget, width, height, rects, holes.length);
     }
+
+    public function capture(w:Int, h:Int):Null<haxe.io.Bytes>
+    {
+        if (widget == null || w <= 0 || h <= 0) return null;
+        var pixels = haxe.io.Bytes.alloc(w * h * 4);
+        return HostExterns.host_capture(widget, w, h, pixels.getData().bytes) ? pixels : null;
+    }
 }
 
 @:hlNative("webview")
@@ -142,5 +149,7 @@ private extern class HostExterns
     public static function host_set_visible(widget:WindowPtr, visible:Bool):Void;
     // rects: `count` x,y,w,h int32 quads
     public static function host_set_clip_holes(widget:WindowPtr, width:Int, height:Int, rects:hl.Bytes, count:Int):Void;
+    // out: w*h top-down BGRA pixels
+    public static function host_capture(widget:WindowPtr, w:Int, h:Int, out:hl.Bytes):Bool;
 }
 #end

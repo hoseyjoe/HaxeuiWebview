@@ -22,6 +22,7 @@
 #include <webview.h>
 
 #pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "user32.lib")
 
 #define _WEBVIEW _ABSTRACT(webview)
 
@@ -343,3 +344,61 @@ HL_PRIM void HL_NAME(host_set_clip_holes)(void* widget, int width, int height, v
     SetWindowRgn(hwnd, rgn, TRUE);
 }
 DEFINE_PRIM(_VOID, host_set_clip_holes, _WEBVIEW _I32 _I32 _BYTES _I32);
+
+#ifndef PW_RENDERFULLCONTENT
+#define PW_RENDERFULLCONTENT 0x00000002
+#endif
+
+// Copies what the widget currently shows into `out` as w*h top-down BGRA pixels,
+// so the Haxe side can draw it under HaxeUI before holes are cut into the widget
+HL_PRIM bool HL_NAME(host_capture)(void* widget, int w, int h, vbyte* out)
+{
+    HWND hwnd = (HWND)widget;
+    if (!hwnd || !out || w <= 0 || h <= 0) return false;
+
+    HDC screen = GetDC(NULL);
+    HDC mem = CreateCompatibleDC(screen);
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = w;
+    bmi.bmiHeader.biHeight = -h; // top-down
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+    void* bits = NULL;
+    HBITMAP dib = CreateDIBSection(screen, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
+    bool ok = false;
+    if (dib && bits)
+    {
+        HGDIOBJ old = SelectObject(mem, dib);
+        unsigned int* px = (unsigned int*)bits;
+        int count = w * h;
+
+        // WebView2 draws through DirectComposition, which only PW_RENDERFULLCONTENT picks up
+        if (PrintWindow(hwnd, mem, PW_RENDERFULLCONTENT))
+        {
+            GdiFlush();
+            for (int i = 0; i < count && !ok; i++) ok = (px[i] & 0xFFFFFF) != 0;
+        }
+        // Otherwise grab it off the screen; fine while nothing overlaps our window
+        if (!ok)
+        {
+            POINT origin = {0, 0};
+            ClientToScreen(hwnd, &origin);
+            ok = BitBlt(mem, 0, 0, w, h, screen, origin.x, origin.y, SRCCOPY) != 0;
+            GdiFlush();
+        }
+        if (ok)
+        {
+            // GDI leaves alpha at 0
+            unsigned int* dst = (unsigned int*)out;
+            for (int i = 0; i < count; i++) dst[i] = px[i] | 0xFF000000;
+        }
+        SelectObject(mem, old);
+        DeleteObject(dib);
+    }
+    DeleteDC(mem);
+    ReleaseDC(NULL, screen);
+    return ok;
+}
+DEFINE_PRIM(_BOOL, host_capture, _WEBVIEW _I32 _I32 _BYTES);

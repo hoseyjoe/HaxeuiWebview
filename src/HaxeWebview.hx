@@ -50,6 +50,8 @@ class HaxeWebview extends Box {
     #if hl
         private var frameEvent:haxe.MainLoop.MainEvent;
         private var lastRectKey:String = "";
+        // Still of the webview, drawn under HaxeUI while holes are cut so popups look like they sit on top of it
+        private var snapshot:h2d.Bitmap;
     #end
     
     @:isVar public var url(get, set):String;
@@ -196,6 +198,7 @@ class HaxeWebview extends Box {
             super.onDestroy();
             if (frameEvent != null) frameEvent.stop();
             frameEvent = null;
+            dropSnapshot();
             if (webview != null) webview.destroy();
             webview = null;
         }
@@ -279,6 +282,10 @@ class HaxeWebview extends Box {
             if (rectKey != lastRectKey && w > 0 && h > 0) {
                 lastRectKey = rectKey;
                 setWebViewRect(x, y, w, h);
+                if (snapshot != null) {
+                    snapshot.width = w;
+                    snapshot.height = h;
+                }
             }
             #end
             updateClipHoles();
@@ -296,16 +303,33 @@ class HaxeWebview extends Box {
             var holes:Array<ClipRect> = [];
 
             var ownRoot = rootComponent;
+            var modals:Array<Component> = [];
             for (c in Screen.instance.rootComponents) {
                 if (c == ownRoot) continue;
-                // Keep the webview visible (undimmed) behind modal overlays
-                if (c.id == "modal-background" || c.id == "sidebar-modal-background") continue;
+                if (c.id == "modal-background" || c.id == "sidebar-modal-background") {
+                    modals.push(c);
+                    continue;
+                }
                 addClipHole(holes, c, left, top, w, h);
             }
             for (c in overlays) {
                 if (Screen.instance.rootComponents.indexOf(c.rootComponent) == -1) continue;
                 addClipHole(holes, c, left, top, w, h);
             }
+
+            #if hl
+            // Snapshot before the first hole is cut, while the webview is still fully on screen
+            var modalHoles:Array<ClipRect> = [];
+            for (c in modals) addClipHole(modalHoles, c, left, top, w, h);
+            if (holes.length > 0 || modalHoles.length > 0) {
+                if (snapshot == null) takeSnapshot(w, h);
+            } else {
+                dropSnapshot();
+            }
+            // With a snapshot underneath, modal dimming can cover the webview too;
+            // without one, keep the live webview visible (undimmed) behind them
+            if (snapshot != null) holes = holes.concat(modalHoles);
+            #end
 
             // Only touch the native region when something actually changed
             var key = '$w,$h';
@@ -314,6 +338,26 @@ class HaxeWebview extends Box {
             lastClipKey = key;
             host.setClipHoles(holes);
         }
+
+        #if hl
+        private function takeSnapshot(w:Int, h:Int):Void {
+            var bytes = host.capture(w, h);
+            if (bytes == null) return;
+            var pixels = new hxd.Pixels(w, h, bytes, hxd.PixelFormat.BGRA);
+            snapshot = new h2d.Bitmap(h2d.Tile.fromTexture(h3d.mat.Texture.fromPixels(pixels)));
+            snapshot.width = w;
+            snapshot.height = h;
+            // Above our style background, below any child components
+            @:privateAccess _container.addChild(snapshot);
+        }
+
+        private function dropSnapshot():Void {
+            if (snapshot == null) return;
+            snapshot.remove();
+            snapshot.tile.dispose();
+            snapshot = null;
+        }
+        #end
 
         private function addClipHole(holes:Array<ClipRect>, c:Component, left:Int, top:Int, w:Int, h:Int):Void {
             var p = c;

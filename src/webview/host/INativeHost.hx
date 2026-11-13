@@ -41,5 +41,13 @@ interface INativeHost
      * content (and its mouse input) shows through. An empty array removes all holes.
      */
     function setClipHoles(holes:Array<ClipRect>):Void;
+
+    #if hl
+    /**
+     * Grabs what the webview currently shows as w*h top-down BGRA pixels, or null.
+     * Taken before cutting holes so HaxeUI can draw the webview under its popups.
+     */
+    function capture(w:Int, h:Int):Null<haxe.io.Bytes>;
+    #end
 }
 #end
